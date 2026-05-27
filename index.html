@@ -1,509 +1,539 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Video Recorder</title>
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Video Recorder" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Capture</title>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Capture"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0a0a0a; color: #fff; height: 100dvh; overflow: hidden;
+    :root {
+      --bg:#0a0a0a; --surf:#141414; --surf2:#1e1e1e;
+      --bdr:rgba(255,255,255,0.08); --bdr2:rgba(255,255,255,0.16);
+      --txt:#f0f0f0; --muted:#777; --red:#ff3b3b;
+      --grn:#2ecc71; --blu:#3b82f6;
+      --mono:'DM Mono',monospace; --ui:'Syne',sans-serif;
     }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--ui);}
 
     /* ── PORTRAIT layout ── */
-    #app {
-      display: flex; flex-direction: column;
-      height: 100dvh; width: 100%; overflow: hidden;
+    #app{
+      display:flex;flex-direction:column;
+      height:100dvh;
+      padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
+      overflow:hidden;
     }
 
-    #preview-wrap {
-      position: relative; flex: 1; background: #000;
-      display: flex; align-items: center; justify-content: center;
-      overflow: hidden;
-    }
-    #preview-wrap video { width: 100%; height: 100%; object-fit: cover; }
-    .placeholder {
-      color: #555; font-size: 15px; text-align: center; line-height: 2;
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    }
-    .placeholder span { font-size: 48px; display: block; margin-bottom: 8px; }
+    /* header */
+    #hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px;border-bottom:1px solid var(--bdr);flex-shrink:0;}
+    .logo{font-size:20px;font-weight:800;letter-spacing:-.5px;}
+    .logo em{color:var(--red);font-style:normal;}
+    #hdr-r{display:flex;align-items:center;gap:8px;}
+    #sdot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s;}
+    #sdot.g{background:var(--grn);box-shadow:0 0 6px var(--grn);}
+    #sdot.r{background:var(--red);box-shadow:0 0 6px var(--red);animation:bk 1s infinite;}
+    @keyframes bk{0%,100%{opacity:1}50%{opacity:.2}}
+    #gpill{font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:100px;border:1px solid var(--bdr2);background:var(--surf);color:var(--muted);cursor:pointer;white-space:nowrap;}
+    #gpill.on{border-color:var(--grn);color:var(--grn);background:rgba(46,204,113,.08);}
 
-    /* HUD overlays */
-    .rec-dot {
-      position: absolute; top: 16px; left: 16px;
-      width: 12px; height: 12px; border-radius: 50%; background: #e24b4a;
-      display: none; animation: pulse 1s infinite;
+    /* ── PORTRAIT: viewfinder ── */
+    #vf{position:relative;background:#000;flex-shrink:0;overflow:hidden;}
+    /* 9:16 aspect via padding trick */
+    @media(orientation:portrait){
+      #vf{width:100%;padding-bottom:177.78%;}
+      #vf>*{position:absolute;inset:0;}
     }
-    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.15} }
-    .timer {
-      position: absolute; top: 12px; left: 36px;
-      background: rgba(0,0,0,0.55); color: #fff; backdrop-filter: blur(6px);
-      font-size: 14px; font-weight: 700; padding: 4px 12px; border-radius: 20px;
-      display: none; letter-spacing: 0.05em;
+    #cam{width:100%;height:100%;object-fit:cover;display:block;}
+    #ph{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none;}
+    .ph-ring{width:54px;height:54px;border-radius:50%;border:1px solid var(--bdr2);background:var(--surf2);display:flex;align-items:center;justify-content:center;font-size:22px;}
+    .ph-lbl{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;line-height:1.6;}
+    #rbadge{position:absolute;top:12px;left:12px;display:none;align-items:center;gap:5px;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);padding:4px 10px 4px 7px;border-radius:100px;font-family:var(--mono);font-size:11px;color:#fff;}
+    #rbadge .rd{width:7px;height:7px;border-radius:50%;background:var(--red);animation:bk 1s infinite;}
+    #fmtbadge{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);font-family:var(--mono);font-size:10px;color:var(--muted);padding:3px 9px;border-radius:100px;}
+
+    /* ── PORTRAIT: scroll area ── */
+    #pscroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;display:flex;flex-direction:column;gap:10px;}
+
+    /* ── PORTRAIT: footer ── */
+    #pfooter{display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid var(--bdr);flex-shrink:0;}
+
+    /* ── LANDSCAPE layout ── */
+    @media(orientation:landscape){
+      /* hide portrait-only footer, show landscape controls */
+      #pfooter{display:none;}
+      #lctrls{display:flex !important;}
+
+      /* side-by-side */
+      #body{display:flex;flex-direction:row;flex:1;min-height:0;}
+
+      /* viewfinder: full height, 9:16 width */
+      #vf{
+        padding-bottom:0 !important;
+        height:100%;
+        flex-shrink:0;
+        /* width = height * (9/16) — done in JS below */
+        border-radius:0;
+      }
+      #vf>*{position:absolute;inset:0;}
+
+      /* right panel */
+      #rpanel{
+        flex:1;
+        display:flex;flex-direction:column;
+        overflow:hidden;
+        border-left:1px solid var(--bdr);
+        min-width:0;
+      }
+      #lctrls{gap:8px;padding:10px 12px;border-bottom:1px solid var(--bdr);flex-shrink:0;}
+      #rscroll{
+        flex:1;
+        overflow-y:auto;
+        -webkit-overflow-scrolling:touch;
+        padding:12px;
+        display:flex;flex-direction:column;
+        gap:10px;
+      }
     }
-    .signed-pill {
-      position: absolute; top: 12px; right: 12px;
-      background: rgba(19,115,51,0.85); color: #b7f5c8; backdrop-filter: blur(6px);
-      font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px;
-      display: none; letter-spacing: 0.03em;
+    /* hide landscape-only elements in portrait */
+    @media(orientation:portrait){
+      #lctrls{display:none;}
+      #body{display:flex;flex-direction:column;flex:1;min-height:0;}
+      #rpanel{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;}
+      #rscroll{
+        flex:1;
+        overflow-y:auto;
+        -webkit-overflow-scrolling:touch;
+        overscroll-behavior:contain;
+        padding:12px;
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+        /* ensure scrollbar visible on mobile */
+        scrollbar-width:thin;
+        scrollbar-color:var(--bdr2) transparent;
+      }
     }
 
-    /* bottom controls bar */
-    #controls-bar {
-      background: #111; padding: 12px 16px 20px;
-      display: flex; flex-direction: column; gap: 10px;
-      flex-shrink: 0;
-    }
-    .btn-row { display: flex; gap: 10px; }
-    .btn {
-      flex: 1; padding: 13px 8px; border-radius: 12px;
-      border: 1px solid #2a2a2a; background: #1c1c1c;
-      color: #fff; font-size: 14px; font-weight: 600;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
-      -webkit-tap-highlight-color: transparent; transition: opacity .15s;
-    }
-    .btn:active { opacity: 0.6; }
-    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
-    .btn.primary { background: #1a73e8; border-color: #1a73e8; }
-    .btn.danger  { background: #c5221f; border-color: #c5221f; }
-    .btn.ghost   { background: transparent; border-color: #333; color: #aaa; font-size: 13px; }
+    /* ── buttons ── */
+    .cbtn{flex:1;padding:12px 8px;border-radius:10px;border:1px solid var(--bdr2);background:var(--surf);color:var(--txt);font-family:var(--ui);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;}
+    .cbtn:active{transform:scale(.97);}
+    .cbtn:disabled{opacity:.3;pointer-events:none;}
+    .cbtn.rec{background:var(--red);border-color:transparent;color:#fff;}
+    .cbtn.stop{border-color:var(--red);color:var(--red);}
 
-    /* status */
-    #status-area { padding: 0 16px; }
-    .status-card {
-      border-radius: 10px; padding: 10px 14px; font-size: 13px;
-      display: flex; align-items: center; gap: 8px; line-height: 1.5;
-    }
-    .status-card.success { background: rgba(19,115,51,0.2); color: #5eca82; }
-    .status-card.error   { background: rgba(197,34,31,0.2); color: #f28b82; }
-    .status-card.info    { background: rgba(26,115,232,0.2); color: #8ab4f8; }
+    /* ── panels ── */
+    .panel{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;overflow:visible;}
+    /* inner scroll for recordings list so it doesn't push the panel taller than the screen */
+    #rlist{max-height:40vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;border-radius:0 0 12px 12px;}
+    .phdr{padding:9px 13px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;}
+    .plbl{font-family:var(--mono);font-size:10px;font-weight:500;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;}
+    .pbdy{padding:11px 13px;}
 
-    /* ── PANEL (settings + recordings) ── */
-    #panel {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-      backdrop-filter: blur(4px); z-index: 100;
-      display: none; align-items: flex-end; justify-content: center;
-    }
-    #panel.open { display: flex; }
-    #panel-inner {
-      background: #161616; border-radius: 20px 20px 0 0;
-      width: 100%; max-width: 600px; max-height: 82dvh;
-      overflow-y: auto; padding: 0 16px 32px;
-    }
-    .panel-handle {
-      width: 36px; height: 4px; background: #333; border-radius: 2px;
-      margin: 12px auto 16px;
-    }
-    .panel-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
-    .section-label {
-      font-size: 11px; font-weight: 600; color: #555; letter-spacing: 0.08em;
-      text-transform: uppercase; margin: 16px 0 8px;
-    }
-    .field-label { font-size: 12px; color: #666; margin-bottom: 5px; font-weight: 500; }
-    input[type=text] {
-      width: 100%; padding: 11px 12px; font-size: 15px;
-      border: 1px solid #2a2a2a; border-radius: 10px;
-      background: #1c1c1c; color: #fff; margin-bottom: 10px;
-      -webkit-appearance: none;
-    }
-    input[type=text]:focus { outline: none; border-color: #1a73e8; }
-    .google-btn {
-      width: 100%; padding: 13px; border-radius: 10px;
-      border: 1px solid #2a2a2a; background: #1c1c1c;
-      color: #fff; font-size: 14px; font-weight: 600;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .google-btn:active { background: #252525; }
+    /* toast */
+    #toast{font-family:var(--mono);font-size:11px;padding:9px 13px;border-radius:9px;line-height:1.5;display:none;}
+    #toast.on{display:block;}
+    #toast.s{background:rgba(46,204,113,.1);color:var(--grn);border:1px solid rgba(46,204,113,.2);}
+    #toast.e{background:rgba(255,59,59,.1);color:#ff6b6b;border:1px solid rgba(255,59,59,.2);}
+    #toast.i{background:rgba(59,130,246,.1);color:#7ab3ff;border:1px solid rgba(59,130,246,.2);}
+
+    /* fields */
+    .fl{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase;}
+    .fw{margin-bottom:10px;}
+    .fw:last-child{margin-bottom:0;}
+    input[type=text]{width:100%;padding:8px 11px;font-size:13px;font-family:var(--mono);border:1px solid var(--bdr2);border-radius:8px;background:var(--surf2);color:var(--txt);-webkit-appearance:none;}
+    input[type=text]:focus{outline:none;border-color:var(--blu);}
+
+    /* dropdown */
+    .selwrap{position:relative;}
+    select.sfdrop{width:100%;padding:8px 28px 8px 11px;font-size:13px;font-family:var(--mono);border:1px solid var(--bdr2);border-radius:8px;background:var(--surf2);color:var(--txt);-webkit-appearance:none;appearance:none;cursor:pointer;}
+    select.sfdrop:disabled{opacity:.4;}
+    select.sfdrop:focus{outline:none;border-color:var(--blu);}
+    .selarrow{position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);font-size:10px;}
+    .sfhint{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5;}
 
     /* recordings */
-    .rec-card {
-      background: #1c1c1c; border: 1px solid #2a2a2a;
-      border-radius: 12px; padding: 12px; margin-bottom: 8px;
-    }
-    .rec-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .rec-thumb {
-      width: 52px; height: 36px; background: #111; border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px; flex-shrink: 0;
-    }
-    .rec-info { flex: 1; min-width: 0; }
-    .rec-name-display { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .rec-meta { font-size: 11px; color: #666; margin-top: 2px; }
-    .rec-actions { display: flex; gap: 6px; }
-    .rec-btn {
-      flex: 1; padding: 9px 4px; border-radius: 8px;
-      border: 1px solid #2a2a2a; background: #252525;
-      color: #ccc; font-size: 12px; font-weight: 600;
-      cursor: pointer; text-align: center; text-decoration: none;
-      display: flex; align-items: center; justify-content: center; gap: 3px;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .rec-btn:active { opacity: 0.6; }
-    .rec-btn.upload   { background: #1a73e8; color: #fff; border-color: #1a73e8; }
-    .rec-btn.uploaded { background: #1b3a27; color: #5eca82; border-color: #1b3a27; }
-    .rename-row { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
-    .rename-row input { flex: 1; margin-bottom: 0; font-size: 14px; padding: 8px 10px; }
-    .rename-save   { padding: 8px 12px; border-radius: 8px; border: none; background: #1a73e8; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .rename-cancel { padding: 8px 10px; border-radius: 8px; border: 1px solid #333; background: #1c1c1c; color: #888; font-size: 13px; cursor: pointer; }
+    .ri{padding:11px 13px;border-bottom:1px solid var(--bdr);display:flex;flex-direction:column;gap:7px;}
+    .ri:last-child{border-bottom:none;}
+    .ri-top{display:flex;align-items:center;gap:9px;}
+    .ri-thumb{width:40px;height:40px;border-radius:8px;background:var(--surf2);border:1px solid var(--bdr2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;}
+    .ri-info{flex:1;min-width:0;}
+    .ri-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .ri-sub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:1px;}
+    .ri-btns{display:flex;gap:5px;}
+    .rb{flex:1;padding:7px 3px;border-radius:7px;font-size:11px;font-weight:700;font-family:var(--ui);border:1px solid var(--bdr2);background:var(--surf2);color:var(--muted);cursor:pointer;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:3px;transition:all .15s;}
+    .rb:active{transform:scale(.96);}
+    .rb.up{background:var(--blu);border-color:transparent;color:#fff;}
+    .rb.done{background:rgba(46,204,113,.12);border-color:rgba(46,204,113,.25);color:var(--grn);}
+    .rn-row{display:flex;gap:5px;}
+    .rn-row input{flex:1;margin:0;padding:7px 9px;font-size:12px;}
+    .rn-ok{padding:7px 11px;border-radius:7px;border:none;background:var(--blu);color:#fff;font-size:12px;font-weight:700;font-family:var(--ui);cursor:pointer;}
+    .rn-x{padding:7px 9px;border-radius:7px;border:1px solid var(--bdr2);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;}
+    .empty{font-family:var(--mono);font-size:11px;color:var(--muted);padding:18px 13px;text-align:center;line-height:1.8;}
 
-    /* ── LANDSCAPE overrides ── */
-    @media (orientation: landscape) {
-      body { overflow: hidden; }
-      #app { flex-direction: row; height: 100dvh; }
-
-      #preview-wrap { flex: 1; height: 100dvh; }
-
-      #controls-bar {
-        width: 220px; flex-shrink: 0; height: 100dvh;
-        padding: 20px 14px 28px; flex-direction: column;
-        justify-content: flex-end; gap: 8px;
-        border-left: 1px solid #1a1a1a;
-      }
-      .btn-row { flex-direction: column; }
-      .btn { padding: 12px 8px; font-size: 13px; }
-
-      #panel-inner {
-        border-radius: 20px 0 0 20px;
-        max-height: 100dvh; height: 100dvh;
-        width: 340px; max-width: 340px;
-      }
-      #panel { align-items: center; justify-content: flex-end; }
-    }
+    /* debug banner */
+    #dbg{display:none;font-family:var(--mono);font-size:10px;color:#ffaa00;background:rgba(255,170,0,.1);border:1px solid rgba(255,170,0,.2);border-radius:8px;padding:8px 12px;white-space:pre-wrap;word-break:break-all;}
+    #dbg.show{display:block;}
   </style>
 </head>
 <body>
 <div id="app">
 
-  <!-- CAMERA PREVIEW -->
-  <div id="preview-wrap">
-    <div class="placeholder" id="placeholder">
-      <span>📷</span>
-      Tap Start Camera to begin
+  <!-- HEADER -->
+  <div id="hdr">
+    <div class="logo">cap<em>.</em>ture</div>
+    <div id="hdr-r">
+      <div id="sdot"></div>
+      <button id="gpill" onclick="signIn()">sign in to google</button>
     </div>
-    <video id="preview" autoplay muted playsinline style="display:none"></video>
-    <div class="rec-dot"   id="rec-dot"></div>
-    <div class="timer"     id="timer">0:00</div>
-    <div class="signed-pill" id="signed-pill">✓ Google signed in</div>
   </div>
 
-  <!-- CONTROLS BAR -->
-  <div id="controls-bar">
-    <div id="status-area"></div>
-    <div class="btn-row">
-      <button class="btn" id="btn-camera" onclick="startCamera()">📷 Start Camera</button>
-      <button class="btn primary" id="btn-record" onclick="toggleRecord()" disabled>⏺ Record</button>
-    </div>
-    <div class="btn-row">
-      <button class="btn ghost" onclick="openPanel('drive')">☁ Drive Setup</button>
-      <button class="btn ghost" id="btn-clips" onclick="openPanel('clips')" style="display:none">🎬 Clips</button>
-    </div>
-  </div>
-</div>
+  <!-- BODY: portrait=contents, landscape=flex row -->
+  <div id="body" style="flex:1;min-height:0;overflow:hidden;">
 
-<!-- SLIDE-UP PANEL -->
-<div id="panel" onclick="closePanelIfBg(event)">
-  <div id="panel-inner">
-    <div class="panel-handle"></div>
-    <div class="panel-title" id="panel-title">Drive Setup</div>
-    <div id="panel-body"></div>
+    <!-- VIEWFINDER -->
+    <div id="vf">
+      <video id="cam" autoplay muted playsinline></video>
+      <div id="ph">
+        <div class="ph-ring">📷</div>
+        <div class="ph-lbl">tap start camera<br>to begin</div>
+      </div>
+      <div id="rbadge"><div class="rd"></div><span id="rtimer">0:00</span><span style="color:var(--muted);margin-left:3px">REC</span></div>
+      <div id="fmtbadge">16:9</div>
+    </div>
+
+    <!-- RIGHT PANEL (landscape) / inline (portrait via display:contents) -->
+    <div id="rpanel">
+
+      <!-- landscape-only controls -->
+      <div id="lctrls" style="display:none;">
+        <button class="cbtn" id="lbtn-cam" onclick="startCamera()">📷 Camera</button>
+        <button class="cbtn rec" id="lbtn-rec" onclick="toggleRecord()" disabled>⏺ Record</button>
+      </div>
+
+      <!-- scrollable content — works in both orientations -->
+      <div id="rscroll">
+
+        <div id="toast"></div>
+        <div id="dbg"></div>
+
+        <!-- Drive panel -->
+        <div class="panel">
+          <div class="phdr"><span class="plbl">Google Drive</span></div>
+          <div class="pbdy">
+            <div class="fw">
+              <div class="fl">Client ID</div>
+              <input type="text" id="client-id" placeholder="paste your client id" oninput="saveSetting()"/>
+            </div>
+            <div class="fw">
+              <div class="fl">Subfolder in Entrevues</div>
+              <div class="selwrap">
+                <select class="sfdrop" id="sfdrop" onchange="onFolderChange()" disabled>
+                  <option value="">sign in to load folders</option>
+                </select>
+                <span class="selarrow">▼</span>
+              </div>
+              <div class="sfhint" id="sfhint">sign in first, then choose a subfolder</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recordings panel -->
+        <div class="panel">
+          <div class="phdr">
+            <span class="plbl">Recordings</span>
+            <span id="rcnt" style="font-family:var(--mono);font-size:10px;color:var(--muted)">0</span>
+          </div>
+          <div id="rlist"><div class="empty">no recordings yet.<br>press record to start.</div></div>
+        </div>
+
+      </div><!-- /rscroll -->
+    </div><!-- /rpanel -->
+
+  </div><!-- /body -->
+
+  <!-- PORTRAIT footer controls -->
+  <div id="pfooter">
+    <button class="cbtn" id="pbtn-cam" onclick="startCamera()">📷 Start Camera</button>
+    <button class="cbtn rec" id="pbtn-rec" onclick="toggleRecord()" disabled>⏺ Record</button>
   </div>
-</div>
+
+</div><!-- /app -->
 
 <script>
-let stream=null,mediaRecorder=null,chunks=[],timerInterval=null;
-let seconds=0,recordings=[],isRecording=false,accessToken=null,tokenExpiry=0;
-let renamingIndex=null,gsiClient=null,currentPanel=null;
+'use strict';
+let stream=null, mr=null, chunks=[], timerInt=null;
+let secs=0, recs=[], recording=false, tok=null, tokExp=0;
+let renIdx=null, gsi=null;
+let entId=null, selFid=null, selFname=null;
+const FOLDER='Entrevues';
 
-/* ── storage ── */
-function saveSettings(){
-  localStorage.setItem('vr_client_id',   document.getElementById('client-id')?.value   || '');
-  localStorage.setItem('vr_folder_name', document.getElementById('folder-name')?.value || '');
+/* ── debug log ── */
+function dbg(msg){
+  const el=document.getElementById('dbg');
+  el.className='show';
+  el.textContent=(el.textContent?el.textContent+'\n':'')+msg;
 }
-function loadSettings(){
-  return {
-    clientId:   localStorage.getItem('vr_client_id')   || '',
-    folderName: localStorage.getItem('vr_folder_name') || 'My Videos'
-  };
-}
-function saveToken(token, expiresIn){
-  const expiry = Date.now() + (expiresIn - 60) * 1000;
-  localStorage.setItem('vr_token',  token);
-  localStorage.setItem('vr_expiry', expiry);
-  accessToken = token; tokenExpiry = expiry;
-}
-function loadToken(){
-  const t=localStorage.getItem('vr_token'), e=parseInt(localStorage.getItem('vr_expiry')||'0');
-  if(t && e && Date.now()<e){ accessToken=t; tokenExpiry=e; return true; }
-  return false;
-}
-function clearToken(){ localStorage.removeItem('vr_token'); localStorage.removeItem('vr_expiry'); accessToken=null; tokenExpiry=0; }
-function isTokenValid(){ return accessToken && Date.now()<tokenExpiry; }
 
-/* ── status ── */
-function showStatus(msg, type='info'){
-  document.getElementById('status-area').innerHTML=`<div class="status-card ${type}">${msg}</div>`;
-  setTimeout(()=>{ const el=document.getElementById('status-area'); if(el) el.innerHTML=''; }, 5000);
+/* ── set viewfinder width in landscape ── */
+function fixVfSize(){
+  const vf=document.getElementById('vf');
+  const isLand=window.matchMedia('(orientation:landscape)').matches;
+  if(isLand){
+    const h=document.getElementById('body').offsetHeight;
+    vf.style.width=Math.floor(h*9/16)+'px';
+    vf.style.height='100%';
+    vf.style.paddingBottom='0';
+    vf.style.position='relative';
+  } else {
+    vf.style.width='';
+    vf.style.height='';
+    vf.style.position='';
+  }
 }
+window.addEventListener('resize',fixVfSize);
+window.addEventListener('orientationchange',()=>setTimeout(fixVfSize,150));
+
+/* ── persist ── */
+function saveSetting(){ localStorage.setItem('vr_cid',document.getElementById('client-id').value); if(selFid)localStorage.setItem('vr_fid',selFid); if(selFname)localStorage.setItem('vr_fn',selFname); }
+function loadSetting(){ const c=localStorage.getItem('vr_cid'),f=localStorage.getItem('vr_fid'),n=localStorage.getItem('vr_fn'); if(c)document.getElementById('client-id').value=c; if(f)selFid=f; if(n)selFname=n; }
+function saveTok(t,exp){ const e=Date.now()+((exp||3600)-60)*1000; localStorage.setItem('vr_tok',t); localStorage.setItem('vr_exp',String(e)); tok=t; tokExp=e; }
+function loadTok(){ const t=localStorage.getItem('vr_tok'),e=parseInt(localStorage.getItem('vr_exp')||'0'); if(t&&e&&Date.now()<e){tok=t;tokExp=e;return true;} return false; }
+function clearTok(){ localStorage.removeItem('vr_tok');localStorage.removeItem('vr_exp');tok=null;tokExp=0; }
+function tokOk(){ return !!(tok&&Date.now()<tokExp); }
+
+/* ── toast ── */
+function toast(msg,t='i'){ const el=document.getElementById('toast'); el.innerHTML=msg; el.className='on '+t; clearTimeout(el._x); el._x=setTimeout(()=>el.className='',6000); }
+
+/* ── dot ── */
+function setDot(s){ document.getElementById('sdot').className=s; }
 
 /* ── camera ── */
 async function startCamera(){
-  try {
-    // Prefer MP4-friendly constraints; wider aspect for landscape
-    stream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} },
-      audio:{ echoCancellation:true, noiseSuppression:true }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080},aspectRatio:{ideal:16/9}},
+      audio:{echoCancellation:true,noiseSuppression:true,sampleRate:44100}
     });
-    const vid=document.getElementById('preview');
-    vid.srcObject=stream; vid.style.display='block';
-    document.getElementById('placeholder').style.display='none';
-    document.getElementById('btn-camera').disabled=true;
-    document.getElementById('btn-record').disabled=false;
-    localStorage.setItem('vr_cam_allowed','1');
-    showStatus('📷 Camera ready', 'info');
-  } catch(e){
-    showStatus('❌ Camera denied — allow access in browser settings', 'error');
+    const v=document.getElementById('cam');
+    v.srcObject=stream;
+    setAllBtns('cam',true); setAllBtns('rec',false);
+    localStorage.setItem('vr_cam','1');
+    toast('camera ready — press record','i');
+    dbg('camera started ok');
+  }catch(err){
+    toast('camera denied — allow in browser settings','e');
+    dbg('camera error: '+err.message);
   }
+}
+
+function setAllBtns(which,disabled){
+  const ids=which==='cam'?['pbtn-cam','lbtn-cam']:['pbtn-rec','lbtn-rec'];
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=disabled;});
+}
+function setRecBtnState(label,cls){
+  ['pbtn-rec','lbtn-rec'].forEach(id=>{const el=document.getElementById(id);if(el){el.textContent=label;el.className='cbtn '+cls;}});
 }
 
 /* ── recording ── */
-function toggleRecord(){ if(!isRecording) startRecording(); else stopRecording(); }
+function toggleRecord(){ recording?stopRec():startRec(); }
 
-function getBestMimeType(){
-  // Prefer MP4, fall back to webm
-  const types = [
+function getBestMime(){
+  const list=[
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
     'video/mp4;codecs=avc1,mp4a.40.2',
-    'video/mp4;codecs=avc1',
     'video/mp4',
+    'video/webm;codecs=h264,opus',
     'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
     'video/webm'
   ];
-  for(const t of types){ if(MediaRecorder.isTypeSupported(t)) return t; }
+  for(const m of list){ try{ if(MediaRecorder.isTypeSupported(m))return m; }catch(e){} }
   return '';
 }
 
-function startRecording(){
+function startRec(){
+  if(!stream){ toast('start camera first','e'); return; }
   chunks=[];
-  const mimeType = getBestMimeType();
-  const options  = mimeType ? { mimeType } : {};
-  try {
-    mediaRecorder = new MediaRecorder(stream, options);
-  } catch(e) {
-    mediaRecorder = new MediaRecorder(stream);
+  const mime=getBestMime();
+  dbg('starting rec, mime='+mime);
+  try{
+    mr=mime ? new MediaRecorder(stream,{mimeType:mime}) : new MediaRecorder(stream);
+  }catch(err){
+    dbg('MediaRecorder fallback: '+err.message);
+    try{ mr=new MediaRecorder(stream); }catch(e2){ toast('recorder failed: '+e2.message,'e'); return; }
   }
-  mediaRecorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
-  mediaRecorder.onstop = saveRecording;
-  mediaRecorder.start(500);
-  isRecording=true; seconds=0;
-  document.getElementById('rec-dot').style.display='block';
-  document.getElementById('timer').style.display='block';
-  document.getElementById('btn-record').innerHTML='⏹ Stop';
-  document.getElementById('btn-record').classList.add('danger');
-  document.getElementById('btn-record').classList.remove('primary');
-  timerInterval=setInterval(()=>{
-    seconds++;
-    const m=Math.floor(seconds/60),s=seconds%60;
-    document.getElementById('timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;
-  },1000);
+  // Capture mime NOW before any async happens — iOS clears it later
+  const useMime=mr.mimeType||mime||'video/mp4';
+  dbg('actual mimeType='+useMime);
+
+  mr.ondataavailable=e=>{
+    dbg('chunk: '+(e.data?e.data.size:'null'));
+    if(e.data&&e.data.size>0) chunks.push(e.data);
+  };
+
+  // KEY FIX: use a flag + small delay so all chunks arrive before we process
+  mr.onstop=()=>{
+    dbg('onstop fired, chunks='+chunks.length);
+    // Give iOS 200ms to flush any final chunk
+    setTimeout(()=>finalizeRec(useMime), 200);
+  };
+
+  mr.onerror=err=>{ dbg('mr error: '+JSON.stringify(err)); toast('recorder error','e'); };
+
+  // Request data every 500ms AND on stop — crucial for iOS
+  mr.start(500);
+  recording=true; secs=0;
+  document.getElementById('rbadge').style.display='flex';
+  document.getElementById('fmtbadge').textContent=useMime.includes('mp4')?'MP4 · 16:9':'WebM · 16:9';
+  setRecBtnState('⏹ Stop','cbtn stop');
+  setDot('r');
+  timerInt=setInterval(()=>{ secs++; const m=Math.floor(secs/60),s=secs%60; document.getElementById('rtimer').textContent=`${m}:${s.toString().padStart(2,'0')}`; },1000);
+  toast('recording…','i');
 }
 
-function stopRecording(){
-  mediaRecorder.stop(); isRecording=false; clearInterval(timerInterval);
-  document.getElementById('rec-dot').style.display='none';
-  document.getElementById('btn-record').innerHTML='⏺ Record';
-  document.getElementById('btn-record').classList.remove('danger');
-  document.getElementById('btn-record').classList.add('primary');
-}
-
-function saveRecording(){
-  const mimeType = chunks[0]?.type || 'video/webm';
-  const ext      = mimeType.includes('mp4') ? 'mp4' : 'webm';
-  const blob     = new Blob(chunks,{type:mimeType});
-  const name     = `video_${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}`;
-  const size     = (blob.size/(1024*1024)).toFixed(1)+' MB';
-  const url      = URL.createObjectURL(blob);
-  recordings.unshift({name,ext,blob,size,url,uploaded:false});
-  document.getElementById('btn-clips').style.display='';
-  showStatus(`✅ Saved ${size} — tap Clips to upload`, 'success');
-  if(currentPanel==='clips') renderPanel();
-}
-
-/* ── panel ── */
-function openPanel(tab){
-  currentPanel=tab;
-  document.getElementById('panel').classList.add('open');
-  renderPanel();
-}
-function closePanel(){
-  document.getElementById('panel').classList.remove('open');
-  currentPanel=null;
-}
-function closePanelIfBg(e){
-  if(e.target===document.getElementById('panel')) closePanel();
-}
-
-function renderPanel(){
-  const s=loadSettings();
-  if(currentPanel==='drive'){
-    document.getElementById('panel-title').textContent='Drive Setup';
-    document.getElementById('panel-body').innerHTML=`
-      <div class="section-label">Google Auth</div>
-      <div class="field-label">Client ID</div>
-      <input type="text" id="client-id" placeholder="Paste your Client ID" value="${s.clientId}" oninput="saveSettings()" />
-      <div class="field-label">Drive folder name</div>
-      <input type="text" id="folder-name" value="${s.folderName}" oninput="saveSettings()" />
-      <button class="google-btn" onclick="signIn()">
-        <img src="https://www.google.com/favicon.ico" width="18" height="18" alt="G">
-        ${isTokenValid() ? '✓ Signed in — tap to refresh' : 'Sign in with Google'}
-      </button>
-    `;
-  } else {
-    document.getElementById('panel-title').textContent='Recorded Clips';
-    if(!recordings.length){
-      document.getElementById('panel-body').innerHTML='<p style="color:#555;font-size:14px;padding:20px 0;text-align:center">No recordings yet</p>';
-      return;
-    }
-    document.getElementById('panel-body').innerHTML=
-      recordings.map((r,i)=>{
-        const isRenaming=renamingIndex===i;
-        return `
-        <div class="rec-card" id="rec-${i}">
-          <div class="rec-header">
-            <div class="rec-thumb">🎬</div>
-            <div class="rec-info">
-              <div class="rec-name-display">${r.name}.${r.ext}</div>
-              <div class="rec-meta">${r.size} &nbsp;•&nbsp; ${r.ext.toUpperCase()}</div>
-            </div>
-          </div>
-          ${isRenaming ? `
-            <div class="rename-row">
-              <input type="text" id="rename-input-${i}" value="${r.name}" />
-              <button class="rename-save"   onclick="saveRename(${i})">Save</button>
-              <button class="rename-cancel" onclick="cancelRename()">✕</button>
-            </div>` : ''}
-          <div class="rec-actions">
-            <a class="rec-btn" href="${r.url}" download="${r.name}.${r.ext}">⬇ Save</a>
-            <button class="rec-btn" onclick="startRename(${i})">✏️ Rename</button>
-            <button class="rec-btn ${r.uploaded?'uploaded':'upload'}"
-                    onclick="uploadToDrive(${i})" ${r.uploaded?'disabled':''}>
-              ${r.uploaded ? '✓ Done' : '☁ Upload'}
-            </button>
-          </div>
-        </div>`;
-      }).join('');
+function stopRec(){
+  clearInterval(timerInt);
+  if(mr&&mr.state!=='inactive'){
+    // Request final chunk before stopping
+    try{ mr.requestData(); }catch(e){}
+    mr.stop();
   }
+  recording=false;
+  document.getElementById('rbadge').style.display='none';
+  setRecBtnState('⏺ Record','cbtn rec');
+  setDot('g');
 }
 
-function startRename(i){
-  renamingIndex=i; renderPanel();
-  setTimeout(()=>{ const inp=document.getElementById(`rename-input-${i}`); if(inp){inp.focus();inp.select();} },50);
+function finalizeRec(mime){
+  dbg('finalizeRec: chunks='+chunks.length+' mime='+mime);
+  if(!chunks.length){ toast('no data — try recording longer','e'); return; }
+  const ext=mime.includes('mp4')?'mp4':'webm';
+  // Try original mime, then mp4 fallback, then bare blob for iOS
+  let blob;
+  try{ blob=new Blob(chunks,{type:mime}); }
+  catch(e){ dbg('blob err: '+e.message); try{ blob=new Blob(chunks,{type:'video/mp4'}); }catch(e2){ blob=new Blob(chunks); } }
+  dbg('blob size='+blob.size+' type='+blob.type);
+  if(!blob||blob.size<500){ toast('video too small — try again','e'); return; }
+  const name='capture_'+new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  const size=(blob.size/1048576).toFixed(1)+' MB';
+  let url='';
+  try{ url=URL.createObjectURL(blob); dbg('objectURL ok: '+url.slice(0,40)); }
+  catch(e){ dbg('objectURL err: '+e.message); }
+  recs.unshift({name,ext,blob,size,url,uploaded:false});
+  dbg('added to recs, total='+recs.length);
+  renderRecs();
+  toast('✓ saved '+name+'.'+ext+' ('+size+') — tap upload','s');
+  // Scroll the actual scroll container rather than the child element
+  setTimeout(()=>{
+    const scroller=document.getElementById('rscroll');
+    if(scroller){ scroller.scrollTop=scroller.scrollHeight; }
+    else{ try{ document.getElementById('rlist').scrollIntoView({behavior:'smooth'}); }catch(e){} }
+  },300);
 }
-function saveRename(i){
-  const inp=document.getElementById(`rename-input-${i}`);
-  if(inp){ const n=inp.value.trim().replace(/[\/\\:*?"<>|]/g,'_'); if(n) recordings[i].name=n; }
-  renamingIndex=null; renderPanel();
-}
-function cancelRename(){ renamingIndex=null; renderPanel(); }
 
-/* ── Google auth ── */
-function buildGsiClient(clientId){
-  gsiClient=google.accounts.oauth2.initTokenClient({
-    client_id:clientId,
-    scope:'https://www.googleapis.com/auth/drive.file',
-    callback:(resp)=>{
-      if(resp.access_token){
-        saveToken(resp.access_token, resp.expires_in||3600);
-        markSignedIn();
-        showStatus('✅ Signed in to Google!','success');
-        if(currentPanel==='drive') renderPanel();
-      } else {
-        showStatus('❌ Sign-in failed','error');
-      }
-    }
+/* ── render recordings ── */
+function renderRecs(){
+  document.getElementById('rcnt').textContent=recs.length;
+  const list=document.getElementById('rlist');
+  if(!recs.length){ list.innerHTML='<div class="empty">no recordings yet.<br>press record to start.</div>'; return; }
+  list.innerHTML=recs.map((r,i)=>{
+    // Refresh URL if missing or revoked — iOS can invalidate object URLs
+    if(!r.url && r.blob){ try{ r.url=URL.createObjectURL(r.blob); dbg('url refreshed for rec '+i); }catch(e){ dbg('url refresh err: '+e.message); } }
+    const ren=renIdx===i;
+    return `<div class="ri" id="ri-${i}">
+      <div class="ri-top">
+        <div class="ri-thumb">🎬</div>
+        <div class="ri-info">
+          <div class="ri-name">${r.name}.${r.ext}</div>
+          <div class="ri-sub">${r.size} · ${r.ext.toUpperCase()}</div>
+        </div>
+      </div>
+      ${r.url?`<video class="ri-video" src="${r.url}" controls playsinline preload="metadata" style="width:100%;border-radius:8px;background:#000;max-height:180px;display:block;"></video>`:'<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:4px 0">⚠ preview unavailable — use save button</div>'}
+      ${ren?`<div class="rn-row"><input type="text" id="rni-${i}" value="${r.name}"><button class="rn-ok" onclick="saveRename(${i})">save</button><button class="rn-x" onclick="cancelRename()">✕</button></div>`:''}
+      <div class="ri-btns">
+        <a class="rb" href="${r.url||''}" download="${r.name}.${r.ext}" ${r.url?'':'style="opacity:.4;pointer-events:none"'}>⬇ save</a>
+        <button class="rb" onclick="startRename(${i})">✏ rename</button>
+        <button class="rb ${r.uploaded?'done':'up'}" onclick="upload(${i})" ${r.uploaded?'disabled':''}>
+          ${r.uploaded?'✓ done':'☁ upload'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function startRename(i){ renIdx=i; renderRecs(); setTimeout(()=>{const el=document.getElementById('rni-'+i);if(el){el.focus();el.select();}},40); }
+function saveRename(i){ const el=document.getElementById('rni-'+i); if(el){const n=el.value.trim().replace(/[\/\\:*?"<>|]/g,'_');if(n)recs[i].name=n;} renIdx=null; renderRecs(); }
+function cancelRename(){ renIdx=null; renderRecs(); }
+
+/* ── Drive ── */
+async function loadFolders(){
+  const sel=document.getElementById('sfdrop');
+  sel.disabled=true; sel.innerHTML='<option>finding Entrevues…</option>';
+  try{
+    const q=`name='${FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&includeItemsFromAllDrives=true&supportsAllDrives=true&corpora=allDrives&fields=files(id,name)`,{headers:{Authorization:`Bearer ${tok}`}});
+    const d=await r.json();
+    if(!d.files?.length){ sel.innerHTML='<option>⚠ Entrevues not found</option>'; document.getElementById('sfhint').textContent="make sure it's shared with your google account."; return; }
+    entId=d.files[0].id;
+    const q2=`'${entId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const r2=await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q2)}&includeItemsFromAllDrives=true&supportsAllDrives=true&orderBy=name&fields=files(id,name)&pageSize=50`,{headers:{Authorization:`Bearer ${tok}`}});
+    const d2=await r2.json();
+    const subs=d2.files||[];
+    const opts=[{id:entId,name:'📁 Entrevues (root)'},...subs.map(f=>({id:f.id,name:'📁 '+f.name}))];
+    sel.innerHTML=opts.map(o=>`<option value="${o.id}" ${selFid===o.id?'selected':''}>${o.name}</option>`).join('');
+    sel.disabled=false;
+    if(selFid&&opts.find(o=>o.id===selFid)) sel.value=selFid;
+    else{ selFid=opts[0].id; selFname=opts[0].name; sel.value=selFid; saveSetting(); }
+    document.getElementById('sfhint').textContent=subs.length?subs.length+' subfolder'+(subs.length!==1?'s':'')+' in Entrevues':'no subfolders — saving to Entrevues root';
+  }catch(e){ sel.innerHTML=`<option>error: ${e.message}</option>`; dbg('loadFolders err: '+e.message); }
+}
+function onFolderChange(){ const s=document.getElementById('sfdrop'); selFid=s.value; selFname=s.options[s.selectedIndex]?.text||''; saveSetting(); }
+
+/* ── auth ── */
+function buildGsi(cid){
+  gsi=google.accounts.oauth2.initTokenClient({
+    client_id:cid,
+    scope:'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
+    callback:resp=>{
+      if(resp?.access_token){ saveTok(resp.access_token,resp.expires_in); markOn(); toast('signed in','s'); loadFolders(); }
+      else toast('sign-in failed','e');
+    },
+    error_callback:err=>toast('auth error: '+(err.message||'?'),'e')
   });
 }
-function markSignedIn(){
-  document.getElementById('signed-pill').style.display='block';
-}
-function signIn(){
-  const clientId=document.getElementById('client-id')?.value.trim() || loadSettings().clientId;
-  if(!clientId){ showStatus('❌ Paste your Client ID first','error'); return; }
-  saveSettings();
-  if(!gsiClient) buildGsiClient(clientId);
-  gsiClient.requestAccessToken();
-}
-function trySilentRefresh(clientId){
-  if(!clientId) return;
-  try {
-    const silent=google.accounts.oauth2.initTokenClient({
-      client_id:clientId,
-      scope:'https://www.googleapis.com/auth/drive.file',
-      prompt:'',
-      callback:(resp)=>{ if(resp.access_token){ saveToken(resp.access_token,resp.expires_in||3600); markSignedIn(); } },
-      error_callback:()=>{}
-    });
-    silent.requestAccessToken({prompt:''});
-  } catch(e){}
-}
+function markOn(){ document.getElementById('gpill').textContent='✓ connected'; document.getElementById('gpill').classList.add('on'); setDot('g'); }
+function signIn(){ const c=document.getElementById('client-id').value.trim(); if(!c){toast('paste client id first','e');return;} saveSetting(); buildGsi(c); gsi.requestAccessToken(); }
+function silentRefresh(cid){ if(!cid)return; try{ google.accounts.oauth2.initTokenClient({client_id:cid,scope:'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',prompt:'',callback:r=>{if(r?.access_token){saveTok(r.access_token,r.expires_in);markOn();loadFolders();}},error_callback:()=>{}}).requestAccessToken({prompt:''}); }catch(e){} }
 
-/* ── Drive upload ── */
-async function getOrCreateFolder(folderName){
-  const q=`name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-  const res=await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}`,
-    {headers:{Authorization:`Bearer ${accessToken}`}});
-  const data=await res.json();
-  if(data.files?.length) return data.files[0].id;
-  const c=await fetch('https://www.googleapis.com/drive/v3/files',{
-    method:'POST',
-    headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},
-    body:JSON.stringify({name:folderName,mimeType:'application/vnd.google-apps.folder'})
-  });
-  return (await c.json()).id;
-}
-
-async function uploadToDrive(index){
-  if(!isTokenValid()){ showStatus('❌ Session expired — tap Drive Setup to sign in again','error'); return; }
-  const folderName=loadSettings().folderName||'My Videos';
-  showStatus('⏳ Uploading...','info');
-  try {
-    const folderId=await getOrCreateFolder(folderName);
-    const rec=recordings[index];
-    const fileName=`${rec.name}.${rec.ext}`;
+/* ── upload ── */
+async function upload(i){
+  if(!tokOk()){toast('session expired — sign in again','e');return;}
+  if(!selFid){toast('choose a subfolder first','e');return;}
+  const rec=recs[i];
+  if(!rec?.blob||rec.blob.size===0){toast('video is empty','e');return;}
+  const fn=rec.name+'.'+rec.ext;
+  toast('uploading '+fn+'…','i');
+  try{
+    const meta={name:fn,parents:[selFid]};
     const form=new FormData();
-    form.append('metadata',new Blob([JSON.stringify({name:fileName,parents:[folderId]})],{type:'application/json'}));
-    form.append('file',rec.blob);
-    const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
-      method:'POST',headers:{Authorization:`Bearer ${accessToken}`},body:form
-    });
-    if(res.ok){
-      recordings[index].uploaded=true;
-      renderPanel();
-      showStatus(`✅ Uploaded to "${folderName}"!`,'success');
-    } else {
-      const err=await res.json();
-      if(err.error?.code===401){ clearToken(); showStatus('❌ Session expired — sign in again','error'); }
-      else showStatus('❌ Upload failed: '+(err.error?.message||'Unknown error'),'error');
-    }
-  } catch(e){ showStatus('❌ Error: '+e.message,'error'); }
+    form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));
+    form.append('file',rec.blob,fn);
+    const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name&supportsAllDrives=true',{method:'POST',headers:{Authorization:`Bearer ${tok}`},body:form});
+    if(res.ok){ recs[i].uploaded=true; renderRecs(); toast('✓ uploaded to '+selFname,'s'); }
+    else{ const e=await res.json().catch(()=>({})); if(e.error?.code===401){clearTok();toast('session expired','e');}else toast('upload failed: '+(e.error?.message||res.status),'e'); }
+  }catch(e){toast('error: '+e.message,'e');}
 }
 
 /* ── init ── */
 window.addEventListener('load',()=>{
-  if(loadToken()) markSignedIn();
-  const {clientId}=loadSettings();
-  if(localStorage.getItem('vr_cam_allowed')==='1') startCamera();
-  const waitGsi=setInterval(()=>{
-    if(typeof google!=='undefined'&&google.accounts){
-      clearInterval(waitGsi);
-      if(clientId){ buildGsiClient(clientId); if(!isTokenValid()) trySilentRefresh(clientId); }
-    }
-  },300);
+  loadSetting();
+  fixVfSize();
+  if(loadTok()){ markOn(); loadFolders(); }
+  const cid=document.getElementById('client-id').value.trim();
+  if(localStorage.getItem('vr_cam')==='1') startCamera();
+  const w=setInterval(()=>{ if(typeof google!=='undefined'&&google.accounts){ clearInterval(w); if(cid){buildGsi(cid);if(!tokOk())silentRefresh(cid);} } },300);
 });
 </script>
 </body>
